@@ -1,20 +1,27 @@
-# Place this file at:  .github/workflows/job-alerts.yml  in your GitHub repository.
-# Runs 4x daily (6:30 AM, 12:30 PM, 6:30 PM, 11:30 PM IST), posts new drives to
-# Telegram, and refreshes the live portal page (docs/index.html) for GitHub Pages.
-
 name: Placement Job Alerts
 
 on:
   schedule:
-    - cron: "0 1,7,13,18 * * *"   # UTC = 06:30, 12:30, 18:30, 23:30 IST
-  workflow_dispatch: {}            # manual run from the Actions tab
+    - cron: "0 1,7,13,18 * * *"
+  workflow_dispatch: {}
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: placement-alerts-pages
+  cancel-in-progress: false
 
 jobs:
   alerts:
     runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,10 +37,23 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python job_alerts.py
 
-      - name: Save state and portal
+      - name: Save state and portal to repository
         run: |
           git config user.name "job-alert-bot"
           git config user.email "bot@users.noreply.github.com"
           git add seen.json jobs.json docs/ || true
           git diff --cached --quiet || git commit -m "refresh alerts and portal [skip ci]"
+          git pull --rebase
           git push
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload dashboard artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy dashboard to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
