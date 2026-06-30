@@ -636,7 +636,7 @@ def main():
             new_lines.append(
                 f"[{category}] {tag}{title} ({item['source']}{extra}){when}\n{item['link']}")
             kept += 1
-        print(f"{provider}/{token}: {kept} new official opening(s)",
+        print(f"{provider}/{source_token}: {kept} new official opening(s)",
               file=sys.stderr)
 
     # prune portal data
@@ -657,7 +657,7 @@ def main():
     header = f"NEW PLACEMENT ALERTS - {now.strftime('%d %b %Y, %I:%M %p')} IST"
     ok = True
     for msg in chunk_messages(header, new_lines):
-        ok = telegram_send(msg, token, chat_id, dry_run) and ok
+        ok = telegram_send(msg, source_token, chat_id, dry_run) and ok
     if ok:
         save_json(SEEN_FILE, seen[-MAX_SEEN:])
         print(f"Sent {len(new_lines)} new item(s); portal refreshed.")
