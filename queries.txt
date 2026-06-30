@@ -11,6 +11,13 @@ Services :: Capgemini off campus drive
 Services :: Accenture associate software engineer freshers
 Services :: off campus drive 2027 batch
 Services :: off campus drive 2026 batch freshers
+Services :: off campus drive 2028 batch
+
+# ---- Off-campus aggregators (General) ----
+General :: Naukri freshers off campus
+General :: Instahyre fresher hiring
+General :: Cutshort fresher
+General :: LinkedIn off campus drive India
 
 # ---- Hiring challenges / hackathons (Groups A & B) ----
 Hiring Challenges :: Flipkart GRiD registration
@@ -27,6 +34,18 @@ Big Tech & GCC :: Zoho recruitment freshers
 Big Tech & GCC :: GCC fresher hiring India
 Big Tech & GCC :: Walmart Global Tech hiring freshers
 Big Tech & GCC :: American Express campus hiring India
+Big Tech & GCC :: Adobe campus hiring India
+Big Tech & GCC :: Salesforce Futureforce India
+Big Tech & GCC :: Uber University India
+Big Tech & GCC :: De Shaw fresher
+Big Tech & GCC :: Sprinklr campus
+Big Tech & GCC :: Texas Instruments fresher India
+Big Tech & GCC :: Qualcomm fresher India
+
+# ---- PSU / core ----
+General :: ISRO recruitment graduate
+General :: BEL engineer recruitment
+General :: GATE based PSU recruitment
 
 # ---- Women-only programs ----
 Women-only :: Amazon WOW registration

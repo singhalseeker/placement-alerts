@@ -2,14 +2,20 @@
 # These come from companies' own Applicant Tracking Systems (ATS), not news.
 #
 # Format:  Category :: provider :: token
-#   provider = greenhouse | lever
+#   provider = greenhouse | lever | ashby | smartrecruiters | recruitee
 #   token    = the company slug in its careers-board URL.
 #
 # How to find a token:
 #   Open the company's "Careers" page and look at the job-board URL.
 #   * boards.greenhouse.io/<token>  /  job-boards.greenhouse.io/<token>  -> greenhouse
 #   * jobs.lever.co/<token>                                              -> lever
+#   * jobs.ashbyhq.com/<token>                                           -> ashby
+#   * jobs.smartrecruiters.com/<token>                                   -> smartrecruiters
+#   * <token>.recruitee.com                                              -> recruitee
 #   Use that <token> below. Lines starting with # are ignored.
+#   Tip: a token only needs to RESOLVE (curl it); India/fresher relevance is
+#   filtered automatically, so adding a board that has only senior roles today
+#   is harmless - its entry roles appear here when posted.
 #
 # Jobs are auto-filtered to India locations and entry/first-job roles for
 # CSE/AI students (senior + 3-plus-years roles are dropped using the job
@@ -54,6 +60,31 @@ Official Openings :: greenhouse :: stripe
 Official Openings :: greenhouse :: anthropic
 Official Openings :: greenhouse :: mixpanel
 
+# ---- More verified Greenhouse boards (Indian product + GCC) ----
+Official Openings :: greenhouse :: slice
+Official Openings :: greenhouse :: observeai
+Official Openings :: greenhouse :: hackerrank
+Official Openings :: greenhouse :: samsara
+Official Openings :: greenhouse :: asana
+
+# ---- More verified Lever boards ----
+Official Openings :: lever :: porter
+
+# ---- Ashby boards (new-gen Indian startups; no key needed) ----
+Official Openings :: ashby :: sarvam
+Official Openings :: ashby :: navi
+Official Openings :: ashby :: atlan
+
+# ---- SmartRecruiters boards (enterprises / GCCs; no key needed) ----
+Official Openings :: smartrecruiters :: Sutherland
+Official Openings :: smartrecruiters :: Visa
+
+# ---- Recruitee (provider supported; mostly EU boards, rare for India) ----
+# Add an India board if you find one, e.g.:
+# Official Openings :: recruitee :: <company-token>
+
 # ---- Add your own, e.g. ----
 # Official Openings :: greenhouse :: <company-token>
 # Official Openings :: lever :: <company-token>
+# Official Openings :: ashby :: <company-token>
+# Official Openings :: smartrecruiters :: <company-token>

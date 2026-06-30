@@ -172,14 +172,45 @@ def parse_iso(s):
     if not isinstance(s, str) or not s:
         return None
     try:
-        d = datetime.fromisoformat(s)
+        d = datetime.fromisoformat(s.replace("Z", "+00:00"))
         return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
     except ValueError:
         return None
 
 
+def parse_date(v):
+    """Parse a platform 'posted' value into an aware datetime.
+
+    Greenhouse gives an ISO-8601 string (first_published); Lever gives epoch
+    milliseconds as an int (createdAt). Handle both, return None on junk.
+    """
+    if isinstance(v, (int, float)):
+        try:
+            return datetime.fromtimestamp(v / 1000, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    return parse_iso(v)
+
+
 def strip_html(s):
     return " ".join(re.sub(r"<[^>]+>", " ", html.unescape(s or "")).split())
+
+
+def flatten_loc(v):
+    """ATS location fields are a string for some providers and a nested dict
+    for others (SmartRecruiters). Always return a string so ats_keep, which
+    does location.lower(), never hits AttributeError and drops the source.
+    """
+    if isinstance(v, str):
+        s = v
+    elif isinstance(v, dict):
+        s = (v.get("fullLocation") or v.get("name")
+             or ", ".join(str(p) for p in
+                          (v.get("city"), v.get("region"), v.get("country")) if p))
+    else:
+        return ""
+    # Some feeds carry stray slashes in region codes (e.g. "//TN"); tidy them.
+    return re.sub(r"\s+", " ", (s or "").replace("/", " ")).strip()
 
 
 def fetch_greenhouse(token):
@@ -197,7 +228,8 @@ def fetch_greenhouse(token):
                     "location": (j.get("location") or {}).get("name", ""),
                     "body": strip_html(j.get("content")),
                     "source": token.replace("-", " ").title(),
-                    "published": parse_iso(j.get("updated_at"))})
+                    "published": parse_date(j.get("first_published")
+                                            or j.get("updated_at"))})
     return out
 
 
@@ -213,11 +245,73 @@ def fetch_lever(token):
                     "location": cats.get("location", "") or "",
                     "body": j.get("descriptionPlain", "") or "",
                     "source": token.replace("-", " ").title(),
-                    "published": parse_iso(j.get("createdAt"))})
+                    "published": parse_date(j.get("createdAt"))})
     return out
 
 
-FETCHERS = {"greenhouse": fetch_greenhouse, "lever": fetch_lever}
+def fetch_ashby(token):
+    """Openings from a company's Ashby board (no key needed).
+
+    The public posting API returns descriptionPlain, so the experience filter
+    can read the real requirement from the job description, like Greenhouse.
+    """
+    data = json.loads(fetch(
+        f"https://api.ashbyhq.com/posting-api/job-board/{token}"))
+    out = []
+    for j in data.get("jobs", []):
+        if j.get("isListed") is False:        # hidden/unlisted posting
+            continue
+        out.append({"title": (j.get("title") or "").strip(),
+                    "link": j.get("jobUrl") or j.get("applyUrl") or "",
+                    "location": flatten_loc(j.get("location")),
+                    "body": j.get("descriptionPlain") or "",
+                    "source": token.replace("-", " ").title(),
+                    "published": parse_date(j.get("publishedAt"))})
+    return out
+
+
+def fetch_smartrecruiters(token):
+    """Openings from a company's SmartRecruiters board (no key needed).
+
+    The postings listing carries no job description, so filtering here is
+    title + location only. SmartRecruiters states seniority in the title
+    (e.g. 'Sr. Manager'), which SENIOR_WORDS already catches. Reads the first
+    page (up to 100 postings); India roles are kept by ats_keep downstream.
+    """
+    data = json.loads(fetch(
+        "https://api.smartrecruiters.com/v1/companies/"
+        f"{token}/postings?limit=100"))
+    out = []
+    for j in data.get("content", []):
+        jid = j.get("id", "")
+        out.append({"title": (j.get("name") or "").strip(),
+                    "link": f"https://jobs.smartrecruiters.com/{token}/{jid}",
+                    "location": flatten_loc(j.get("location")),
+                    "body": "",
+                    "source": token.replace("-", " ").title(),
+                    "published": parse_date(j.get("releasedDate"))})
+    return out
+
+
+def fetch_recruitee(token):
+    """Openings from a company's Recruitee board (no key needed)."""
+    data = json.loads(fetch(f"https://{token}.recruitee.com/api/offers/"))
+    out = []
+    for j in data.get("offers", []):
+        loc = ", ".join(str(p) for p in (j.get("city"), j.get("country")) if p)
+        out.append({"title": (j.get("title") or "").strip(),
+                    "link": j.get("careers_apply_url") or j.get("careers_url") or "",
+                    "location": loc,
+                    "body": strip_html(j.get("description")),
+                    "source": token.replace("-", " ").title(),
+                    "published": parse_date(j.get("published_at")
+                                            or j.get("created_at"))})
+    return out
+
+
+FETCHERS = {"greenhouse": fetch_greenhouse, "lever": fetch_lever,
+            "ashby": fetch_ashby, "smartrecruiters": fetch_smartrecruiters,
+            "recruitee": fetch_recruitee}
 
 
 def load_json(path, default):
@@ -307,6 +401,17 @@ def chunk_messages(header, lines, limit=3500):
         yield current
 
 
+def fmt_posted(iso):
+    """Absolute date a job went live on its ATS, e.g. '24 Jun 2026'."""
+    try:
+        d = datetime.fromisoformat(iso)
+    except (ValueError, TypeError):
+        return ""
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=timezone.utc)
+    return d.astimezone(IST).strftime("%d %b %Y")
+
+
 def age_label(iso, now):
     then = datetime.fromisoformat(iso)
     mins = int((now - then).total_seconds() // 60)
@@ -346,6 +451,9 @@ def render_portal(jobs, now):
             src = f'<span>{html.escape(j["source"])}</span> · ' if j["source"] else ""
             if j.get("location"):
                 src += f'<span>{html.escape(j["location"])}</span> · '
+            posted = fmt_posted(j.get("posted")) if j.get("posted") else ""
+            if posted:
+                src += f'<span>posted {posted}</span> · '
             cards.append(
                 f'<article class="card" data-cat="{html.escape(cat)}" '
                 f'data-new="{1 if is_new else 0}" '
@@ -516,14 +624,17 @@ def main():
             titles_seen.add(nt)
             loc = item.get("location", "")
             fresher = is_fresher(title, body)
+            posted = item.get("published")
+            posted_iso = posted.isoformat() if posted else None
             jobs.append({"id": lid, "title": title, "link": item["link"],
                          "source": item["source"], "category": category,
                          "official": True, "fresher": fresher, "location": loc,
-                         "first_seen": now.isoformat()})
+                         "posted": posted_iso, "first_seen": now.isoformat()})
             extra = f", {loc}" if loc else ""
             tag = "[Fresher] " if fresher else ""
+            when = f" · posted {fmt_posted(posted_iso)}" if posted_iso else ""
             new_lines.append(
-                f"[{category}] {tag}{title} ({item['source']}{extra})\n{item['link']}")
+                f"[{category}] {tag}{title} ({item['source']}{extra}){when}\n{item['link']}")
             kept += 1
         print(f"{provider}/{token}: {kept} new official opening(s)",
               file=sys.stderr)
